@@ -1,0 +1,87 @@
+# Data
+import yfinance as yf
+import plotly.graph_objects as go
+
+#other packages
+import pandas as pd
+import numpy as np 
+import matplotlib.pyplot as plt
+
+cryptocurrencies = ['BTC-USD', 'ETH-USD', "BNB-USD", "ADA-USD", "DOGE-USD", "LINK-USD","MATIC-USD","VET-USD", "XMR-USD","XRP-USD", "CHZ-USD", "ZIL-USD", "VTHO-USD"]
+
+
+# Function to get actual price
+def getActualPrice(cryptocurrency_list):
+    closing_price_list = []
+    for crypto in cryptocurrency_list:
+        data = yf.download(tickers=crypto, period = '2h', interval = "1m")
+        close_price = data.tail(1)['Close'] 
+        actual_close = np.round(np.float(close_price), 5)
+        closing_price_list.append(actual_close)
+
+    return closing_price_list
+
+closing_price_list = getActualPrice(cryptocurrencies)
+'''Not all coins that are on the market are available through this API. 
+So we're missing, DOT, SOLANA, HOT and AXS'''
+
+
+
+# Now that we have the prices available in a list , We can make a dictionary that simply holds the things we want to know each day like actual price, stop loss, take profit, risk percentage, 
+
+# How many Tokens do we have? (Total for all accounts)
+token_amounts = np.array([2.77, 72.59, 160.00, 34010, 12719, 1194, 20050, 360869, 11.86,207172, 26931, 362801, 207172])
+
+# What is the total amount of tokens in USDT?
+total_usdt = np.array([i*j for (i,j) in zip(token_amounts, closing_price_list)])
+
+# What is the token percentage of the total?
+percentage_total = np.array([i / np.sum(total_usdt) for i in total_usdt])
+
+def theCryptoDictionary():
+    crypto_collection = {}
+    ''' In this collection, each book represents a currency. In each book, you have all the information PER COIN that you would usually have. This information, usually numerical, can be stored in order by which you prioritize risk management indicators/tools. '''
+
+    for i in range(len(cryptocurrencies)):              
+       crypto_collection[cryptocurrencies[i]] = {                          
+           "Actual price": np.round(closing_price_list[i], 3), # This is a list with prices.                         
+            "Token Amount": token_amounts[i],  
+            "% Total": np.round(percentage_total[i], 4),
+            "Total USDT": np.round(total_usdt[i],3),               
+            "Active TP": 0,                
+            "Active SL": 0} 
+    return crypto_collection
+
+'''coin percentage is not accurate due to the difference between python and excel'''
+
+
+#Lets try to write to excel in a normal format. Rows are coins, columns are data parameters
+
+theCryptoDictionary()
+M = len(theCryptoDictionary())
+#make a OxMxN dimensional array - Overzicht
+# O = the time intervals
+# M = the cryptos
+# N = Parameters
+overzicht_matrix = np.empty((M, len(cryptocurrencies)))
+
+def formatArray(array):
+    return np.array([i for i in array]).reshape(order = "F")
+
+# Actual price and Token Amount export to csv
+prices = theCryptoDictionary()
+print(prices["BTC-USD"]["Actual price"])
+
+# append to csv in top down order
+coins = np.array(cryptocurrencies) 
+with open("test_overzicht.csv","w") as f:
+    for i in range(len(coins)):
+        writer = csv.writer(f)
+        writer.writerow([coins[i], prices[coins[i]]["Actual price"], prices[coins[i]]["Total USDT"]]) 
+
+
+# import csv
+# with open("test_overzicht.csv","w") as f:
+#     writer = csv.writer(f)
+#     writer.writerow(cryptocurrencies)
+
