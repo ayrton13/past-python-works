@@ -1,0 +1,573 @@
+#!/usr/bin/env python
+# coding: utf-8
+# Date: 21/06/2021
+# Authors: - Ayrton Sambo
+#          - Shweta Bhiwapurkar  
+
+# Task 1
+
+# In[1]:
+
+#preliminary module import
+
+import numpy as np
+from sklearn.model_selection import train_test_split
+import time
+
+
+# In[2]:
+# Load in training data for Task 1
+
+with np.load('train_data_label.npz') as data:
+    train_data = data['train_data']
+    train_label = data['train_label']
+    
+with np.load('test_data_label.npz') as data:
+    test_data = data['test_data']
+    test_label = data['test_label']   
+
+
+# In[3]:
+# SPlit the data into training and validation set (80/20)
+from sklearn.model_selection import train_test_split
+X_train, X_val, y_train, y_val = train_test_split(train_data, train_label , test_size = 0.2, random_state=0, stratify = train_label)
+
+
+# In[4]:
+# Normalize the data
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train_st_scaled = scaler.fit_transform(X = X_train, y = y_train)
+X_val_st_scaled = scaler.transform(X_val)
+test_data_st_scaled = scaler.transform(test_data)
+
+# In[5]:
+
+    ### Naive Bayes
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import classification_report, confusion_matrix
+
+start = time.perf_counter()
+model = GaussianNB()
+model.fit(X_train_st_scaled, y_train) # fit model to training data
+
+#Prediction on validation set
+expected_val = y_val
+predicted_val = model.predict(X_val_st_scaled)
+
+
+# The evaluation report and confusion matrix for the validation set
+print(classification_report(expected_val,predicted_val))
+cm_val = confusion_matrix(expected_val,predicted_val)
+
+#Prediction on test set
+test_preds = model.predict(test_data_st_scaled)
+
+# The evaluation report and confusion matrix for the test set
+print(classification_report(test_label,test_preds))
+cm_test = confusion_matrix(test_label, test_preds)
+
+end = time.perf_counter()
+print("Total time elapsed (in seconds): {} ".format(end - start))
+
+# In[6]:
+
+# Plot confusion matrix for validation set
+import seaborn as sns
+import matplotlib.pyplot as plt
+target_names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y']
+# Plot confusion matrix 
+fig = plt.figure(figsize=(10,8))
+ax= plt.subplot()
+sns.heatmap(cm_val, annot=True, ax = ax, fmt = 'g')
+# labels, title and ticks
+ax.set_xlabel('Predicted', fontsize=20)
+ax.xaxis.set_label_position('bottom')
+plt.xticks(rotation=90)
+ax.xaxis.set_ticklabels(target_names, fontsize = 10)
+ax.xaxis.tick_bottom()
+
+ax.set_ylabel('True', fontsize=20)
+ax.yaxis.set_ticklabels(target_names, fontsize = 10)
+plt.yticks(rotation=0)
+
+plt.title('Confusion Matrix for validation set', fontsize=15)
+
+
+# In[7]:
+# Plot confusion matrix for test set
+fig = plt.figure(figsize=(10,8))
+ax= plt.subplot()
+sns.heatmap(cm_test, annot=True, ax = ax, fmt = 'g')
+# labels, title and ticks
+ax.set_xlabel('Predicted', fontsize=20)
+ax.xaxis.set_label_position('bottom')
+plt.xticks(rotation=90)
+ax.xaxis.set_ticklabels(target_names, fontsize = 10)
+ax.xaxis.tick_bottom()
+
+ax.set_ylabel('True', fontsize=20)
+ax.yaxis.set_ticklabels(target_names, fontsize = 10)
+plt.yticks(rotation=0)
+
+plt.title('Confusion Matrix for test set', fontsize=15)
+
+# In[8]:
+# Naive Bayes HP Tuning: var_smoothing and Grid Search
+
+from sklearn.model_selection import GridSearchCV
+
+params = {'var_smoothing': [0.01, 0.1, 0.001]}
+cv_vals = [2,3,5,7]
+for k in cv_vals:
+    Gaussian_nb_grid = GridSearchCV(GaussianNB(), param_grid = params, n_jobs=-2, cv=k, verbose=5, refit = True)
+    Gaussian_nb_grid.fit(X_val_st_scaled, y_val)
+    print('Test Accuracy (k = {}): {:.3f}'.format(k, Gaussian_nb_grid.best_estimator_.score(test_data_st_scaled, test_label)))
+    print('Best Parameters (k = {}): {}'.format(k, Gaussian_nb_grid.best_params_))
+    print()
+
+# In[9]:
+
+## Naive Bayes - Predict test data using model fitted with optimal params
+start_nb = time.perf_counter()
+print("Overall accuracy score for test set with HP tuning is: ",round(Gaussian_nb_grid.score(test_data_st_scaled, test_label), 4))
+end_nb = time.perf_counter()
+print("Total prediction time for test set with HP tuning is {} seconds.".format(round(end_nb - start_nb), 3))
+
+# In[9]:
+    ### Support Vector Classifier - No HP
+from sklearn.svm import SVC
+
+#Initialize the model
+start_clf = time.perf_counter()
+clf = SVC(decision_function_shape="ovr", probability=True)# kernel='one versus rest approach'
+clf.fit(X_train_st_scaled, y_train)  # Train the SVC Model
+end_clf = time.perf_counter()
+print("Total training time  with no HPs: {} seconds.".format(round(end_clf - start_clf), 3))
+
+# In[10]:
+
+# Predictions for validation and test set without HP tuning
+start_pred_clf = time.perf_counter()
+y_pred_val = clf.predict(X_val_st_scaled)
+y_pred_test = clf.predict(test_data_st_scaled)
+end_pred_clf = time.perf_counter()
+print("Total prediction time with no HPs: {} seconds.".format(round(end_pred_clf - start_pred_clf), 3))
+
+#Get accuracy scores for val and test set without HP tuning
+from sklearn.metrics import accuracy_score
+
+print('Accuracy validation data:')
+print(accuracy_score(y_val, y_pred_val))
+print('Accuracy test data:')
+print(accuracy_score(test_label, y_pred_test))
+
+# In[11]:
+# Classification report for SVC on test data without HP tuning.
+print(classification_report(test_label, y_pred_test))
+
+# In[12]:
+
+# Generate confusion matrix for test set without HP tuning
+cm_test_svc = confusion_matrix(test_label,y_pred_test)
+
+# Plot confusion matrix for test set
+fig = plt.figure(figsize=(10, 8))
+ax = plt.subplot()
+sns.heatmap(cm_test_svc, annot=True, ax=ax, fmt='g', cmap="YlGnBu")
+# labels, title and ticks
+ax.set_xlabel('Predicted', fontsize=20)
+ax.xaxis.set_label_position('bottom')
+plt.xticks(rotation=90)
+ax.xaxis.set_ticklabels(target_names, fontsize=10)
+ax.xaxis.tick_bottom()
+
+ax.set_ylabel('True', fontsize=20)
+ax.yaxis.set_ticklabels(target_names, fontsize=10)
+plt.yticks(rotation=0)
+
+plt.title('Confusion Matrix for test set (SVC)', fontsize=15)
+
+# In[13]:
+
+# SVC HP tuning with K fold cross-validation & GridSearch
+svc_params = {'C': [2**-2, 2, 2**2, 2**4], 'kernel': ['rbf']}
+
+cv_vals = [3, 5, 7]
+for k in cv_vals:
+    svc_grid = GridSearchCV(SVC(), param_grid=svc_params,n_jobs=-2, cv=k, verbose=4)
+    svc_grid.fit(X_val_st_scaled, y_val)
+    print('Test Accuracy (k = {}): {:.3f}'.format(k, svc_grid.best_estimator_.score(test_data_st_scaled, test_label)))
+    print('Best Parameters (k = {}): {}'.format(k, svc_grid.best_params_))
+    print()
+
+
+# In[14]:
+
+## Predict using model fitted with optimal params and evaluate metrics
+start_svc = time.perf_counter()
+print("Overall accuracy score for test set with HP tuning is: ",round(svc_grid.score(test_data_st_scaled, test_label), 4))
+end_svc = time.perf_counter()
+print("Total prediction time for test set with HP tuning is {} seconds.".format(round(end_svc - start_svc), 3))
+
+
+# In[15]:
+
+### Task 2
+
+import numpy as np
+import csv
+import matplotlib.pyplot as plt
+from skimage.util import img_as_ubyte
+from skimage.filters import sobel
+from skimage import img_as_float, feature
+from scipy import ndimage
+from scipy.ndimage import distance_transform_edt
+from skimage import measure
+from skimage import morphology, segmentation
+
+import warnings
+warnings.filterwarnings('ignore')
+
+
+# In[16]:
+
+
+X_test2 = np.load("test_images_task2.npy") # Load in test data for task 2
+
+
+# In[17]:
+
+#defines bounding boxes for an image
+def bounding_boxes(im, im_ubyte):
+    edge_sobel = img_as_float(sobel(im))
+    dt = distance_transform_edt(edge_sobel)
+    local_max = feature.peak_local_max(dt, indices = False, min_distance = 12)
+    markers = measure.label(local_max)
+    labels = morphology.watershed(-dt, markers)
+    #plt.imshow(segmentation.mark_boundaries(im_ubyte, labels))  #comment after testing
+
+    regions = measure.regionprops(labels, intensity_image = im_ubyte)
+    region_coords = [r.coords for r in regions]
+    region_bbox = [r.bbox for r in regions]
+    #print(region_bbox) #comment after testing
+    return region_bbox
+#-------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------------------------------------
+# In[18]:
+
+
+#this section checks if bounding boxes is 5 tuples.
+#if 2 tuples, then takes largest one and splits into 3, and another one into 2...result is 5 tuples total
+#if 3 tuples, then takes largest 2 and splits them in between...result is 5 tuples
+#if 4 tuples, then takes the largest and splits it in between...result is 5 tuples
+#if 6 tuples, then takes the ones fulfilling a condition and combines them.
+#if 7 tuples, then takes the ones fulfilling a condition and ignores those
+#if 8 tuples, then takes the ones fulfilling a condition and ignores those
+def get5_tuples(region_bbox):
+    if len(region_bbox) == 0 or 1:
+        build = len1(region_bbox)
+    if len(region_bbox) == 2:
+        build = len2(region_bbox)
+    if len(region_bbox) == 3:
+        build = len3(region_bbox)
+    if len(region_bbox) == 4:
+        build = len4(region_bbox)
+    if len(region_bbox) == 5:
+        build = region_bbox
+    if len(region_bbox) == 6:
+        build = len6(region_bbox)
+    if len(region_bbox) == 7:
+        build = len7(region_bbox) 
+    if len(region_bbox) == 8:
+        build = len8(region_bbox)
+    return build    
+    
+#build now has 5 tuples with noise.    
+
+
+# In[19]:
+
+#to cut the noise from build(bounding box) and result is image of shape 28x28.  
+def cut_noise(build):
+    new_bbox = []
+    for i in range(len(build)):
+        if build[i][3] - build[i][1]  <= 28:
+            n_left = 0
+            n_right = 28
+            
+        if build[i][3] - build[i][1]  > 28:
+            tot_cut = build[i][3] - build[i][1]
+            reqd_size = tot_cut - 28
+            if reqd_size % 2 != 0:    #if not an even number
+                tmp = reqd_size - 1
+                add_left = tmp/2
+                sub_right = (tmp/2) +1
+            else: 
+                add_left = reqd_size/2    
+                sub_right = reqd_size/2
+                
+            n_left = int(build[i][1] + add_left)
+            n_right = int(build[i][3] - sub_right )
+        new_bbox.append((n_left, n_right))
+    
+    return new_bbox
+
+#this new_bbox has 5 tuples and might contain section with pure noise. 
+
+
+# In[20]:
+
+
+#this section checks for pixel#200 in each tuple. 
+#If it is greater than 430, that tuple is pure noise and is not considered for prediction
+def remove_purenoise(new_bbox):
+    tmpy = []
+    for k in range(len(new_bbox)):
+        f = im[0:28, new_bbox[k][0]:new_bbox[k][1]]
+        a,b = np.unique(f,return_counts=True)
+    
+        my_dict={}
+        for u in range(len(a)):
+            my_dict[int(a[u])] = b[u]
+       
+        if 200 in my_dict.keys():
+            if my_dict[200] < 430:
+                tmpy.append(new_bbox[k])
+        if not 200 in my_dict.keys():
+            tmpy.append(new_bbox[k])   #if pixel#200 not present then it is pure image, no noise    
+         
+    return tmpy
+
+
+# In[21]:
+
+
+#from the new_bbox created above, this will get prediction probabilities for each class, for each of the tuples.
+def get_predictions(tmpy):
+    key_name = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24']
+    if len(tmpy) == 0:
+        tmpyr = im[0:28, 172:200].reshape(1,784)
+        new_tmpy = np.dtype('int64').type(tmpyr)
+        tmp_data_st_scaled = scaler.transform(new_tmpy)
+        prob = clf.predict_proba(tmp_data_st_scaled)
+        prob_dict = {}
+        for i in range(len(key_name)):
+            prob_dict[key_name[i]] = round(prob[0,i],4)
+
+        sorted_tuples = sorted(prob_dict.items(), key=lambda item: item[1], reverse = True)
+        sorted_dict = {k: v for k, v in sorted_tuples}
+        high5_mod = list(sorted_dict)[:5]
+    else:
+        
+        for k in range(len(tmpy)):
+            tmpyr = im[0:28, tmpy[k][0]:tmpy[k][1]].reshape(1,784)
+            new_tmpy = np.dtype('int64').type(tmpyr)
+            tmp_data_st_scaled = scaler.transform(new_tmpy)
+            prob = clf.predict_proba(tmp_data_st_scaled)  #will create a list of probabilities for all 24 classess
+    
+    #sort the probabilities highest to lowest and get highest 5
+            prob_dict = {}
+            for i in range(len(key_name)):
+                prob_dict[key_name[i]] = round(prob[0,i],4)
+
+            sorted_tuples = sorted(prob_dict.items(), key=lambda item: item[1], reverse = True)
+            sorted_dict = {k: v for k, v in sorted_tuples}
+            high5 = list(sorted_dict)[:5]
+    
+    #combine the labels for the highest 5 probablities
+            if k == 0:
+                high5_mod = high5
+            else:
+                high5_mod = [i + j for i, j in zip(high5_mod, high5)]
+    #print(high5_mod)    
+    return high5_mod
+
+
+# In[22]:
+
+
+def len1(region_bbox1):
+    build = [(0,0,28,40), (0,40,28,80), (0,80,28,120), (0,120,28,160), (0,160,28,200) ]
+    return build
+
+
+# In[23]:
+
+
+def len2(region_bbox1):
+    diff,build = [],[]
+    for i in range(len(region_bbox1)):
+        diff.append( region_bbox1[i][3] - region_bbox1[i][1] )
+    if diff[0] > diff[1]:
+        big = 0
+        small = 1
+    else: 
+        big = 1
+        small = 0
+        
+    #small will be split into 2, big will be split into 3.
+    for i in range(2):
+        if i == small:
+            bbox = list(region_bbox1[small])
+            a = int((bbox[3] - bbox[1] )/2)
+            bbox[3] = int(bbox[3] - a)
+            bbox_new = []
+            bbox_new.append(tuple((bbox[0],bbox[1], bbox[2], bbox[3])))
+            bbox_new.append(tuple((bbox[0],bbox[3]+1, bbox[2], region_bbox1[i][3])))
+            build.append(bbox_new[0])
+            build.append(bbox_new[1])
+        
+        if i == big:
+            bbox_new = []
+            bbox = list(region_bbox1[big])
+            a = int((bbox[3] - bbox[1] )/3)
+            a2 = a*2
+            bbox[3] = int(bbox[1] + a)
+            bbox_new.append(tuple((bbox[0],bbox[1], bbox[2], bbox[3])))
+            bbox_new.append(tuple((bbox[0],bbox[3]+1, bbox[2], bbox[3]+a)))
+            bbox_new.append(tuple((bbox[0],bbox[3]+a, bbox[2], bbox[3]+a2)))
+            
+            build.append(bbox_new[0])
+            build.append(bbox_new[1])
+            build.append(bbox_new[2])
+                   
+    return build
+
+
+# In[24]:
+
+
+def len3(region_bbox1):
+    diff = {}
+    only2lst,s = [],[]
+    for i in range(len(region_bbox1)):
+        diff[i] = region_bbox1[i][3] - region_bbox1[i][1]
+    
+    diff = sorted(diff.items(), key=lambda x:x[1],reverse=True)[:2]
+    only2 = dict(diff)
+    
+    for k in only2.keys():
+        only2lst.append(k)
+        
+    build = []
+    for i in range(len(region_bbox1)):
+        if i in only2lst:
+            bbox = list(region_bbox1[i])
+            a = (bbox[3] - bbox[1] )/2
+            bbox[3] = int(bbox[3] - a)
+            bbox_new = []
+            bbox_new.append(tuple((bbox[0],bbox[1], bbox[2], bbox[3])))
+            bbox_new.append(tuple((bbox[0],bbox[3]+1, bbox[2], region_bbox1[i][3])))
+            build.append(bbox_new[0])
+            build.append(bbox_new[1])
+        else: 
+            build.append(region_bbox1[i])
+    
+    return build
+
+
+# In[25]:
+
+
+def len4(region_bbox1):
+    diff = np.zeros(len(region_bbox1))
+    for i in range(len(region_bbox1)):
+        diff[i] = region_bbox1[i][3] - region_bbox1[i][1]
+    
+    large = diff.argmax()  #finds the one with larget distance and splits it in 2
+    
+    bbox = list(region_bbox1[large])
+    a = (bbox[3] - bbox[1] )/2
+    bbox[3] = int(bbox[3] - a)
+    bbox_new = []
+    bbox_new.append(tuple((bbox[0],bbox[1], bbox[2], bbox[3])))
+    bbox_new.append(tuple((bbox[0],bbox[3]+1, bbox[2], region_bbox1[large][3])))
+    
+    build = []
+    for j in range(4):
+        if j == large:
+            build.append(bbox_new[0])
+            build.append(bbox_new[1])
+        
+        else:
+            build.append(region_bbox1[j])
+    
+    return build
+
+
+# In[26]:
+
+
+def len6(region_bbox1):
+    to_mod, build = [],[]
+    for i in range(6):
+        if region_bbox1[i][0] != 0 or region_bbox1[i][2] != 28:
+            to_mod.append( region_bbox1[i])
+        else: build.append(region_bbox1[i])
+    if len(to_mod) == 2:
+        a=min(to_mod[0][1], to_mod[1][1])
+        b=max(to_mod[0][3], to_mod[1][3])
+        combine = tuple((0,a,28,b))
+        build.append(tuple((combine)))
+    
+    return build 
+
+
+# In[27]:
+
+
+def len7(region_bbox1):
+    index_nos = []
+    build = []
+    for i in range(7):
+        if region_bbox1[i][0] != 0 or region_bbox1[i][2] != 28:
+            index_nos.append(i)
+    
+    for i in range(7):
+        if i not in index_nos:
+            build.append(region_bbox[i])
+    
+    return build
+
+
+# In[28]:
+
+
+def len8(region_bbox1):
+    index_nos = []
+    build = []
+    for i in range(8):
+        if region_bbox1[i][0] != 0 or region_bbox1[i][2] != 28:
+            index_nos.append(i)
+    for i in range(7):
+        if i not in index_nos:
+            build.append(region_bbox[i])
+    
+    return build
+
+
+# In[29]:
+import pandas as pd
+
+high5_pred = []
+for rec in range(len(X_test2)):
+    #print(rec) #test print to chk where it fails
+    im = X_test2[rec].reshape((28,200))
+    im_ubyte = img_as_ubyte(X_test2[rec] / 255).reshape((28,200))
+    region_bbox = bounding_boxes(im, im_ubyte)
+    build = get5_tuples(region_bbox)
+    new_bbox = cut_noise(build)
+    tmpy = remove_purenoise(new_bbox)
+    high5_pred.append( get_predictions(tmpy) )
+
+
+#convert predictions list into dataframe and save into csv
+df = pd.DataFrame(high5_pred, columns=['Pred1', 'Pred2', 'Pred3', 'Pred4', 'Pred5'])
+df['Pred1'] = df['Pred1'].apply('="{}"'.format)
+df['Pred2'] = df['Pred2'].apply('="{}"'.format)
+df['Pred3'] = df['Pred3'].apply('="{}"'.format)
+df['Pred4'] = df['Pred4'].apply('="{}"'.format)
+df['Pred5'] = df['Pred5'].apply('="{}"'.format)
+
+df.to_csv("predictions.csv", index=False, header=False)
